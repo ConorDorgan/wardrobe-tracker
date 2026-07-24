@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Bag</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{--bg:#0c0c0c;--surface:#181818;--surface2:#242424;--border:#2a2a2a;--accent:#5b8df6;--text:#f0f0f0;--muted:#777}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100dvh;overflow-x:hidden}
+
+.gallery{position:relative;background:#111;user-select:none}
+.gallery-track{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.gallery-track::-webkit-scrollbar{display:none}
+.gallery-track img{scroll-snap-align:start;flex:0 0 100%;width:100%;height:62vw;max-height:400px;object-fit:cover;display:block}
+.gallery-empty{height:220px;display:flex;align-items:center;justify-content:center;font-size:64px;color:var(--muted);background:var(--surface2)}
+.dots{display:flex;justify-content:center;gap:6px;padding:10px;position:absolute;bottom:0;left:0;right:0;pointer-events:none}
+.dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.3);transition:background .2s,transform .2s}
+.dot.active{background:#fff;transform:scale(1.2)}
+
+.topnav{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:linear-gradient(rgba(0,0,0,.5),transparent)}
+.topnav a{color:#fff;text-decoration:none;font-size:15px;font-weight:500;text-shadow:0 1px 4px rgba(0,0,0,.6)}
+.topnav span{font-size:13px;color:rgba(255,255,255,.7);text-shadow:0 1px 4px rgba(0,0,0,.6)}
+
+.info{padding:20px 16px 48px}
+.bag-name{font-size:26px;font-weight:700;letter-spacing:-.5px;line-height:1.2;margin-bottom:8px}
+.bag-loc{display:inline-flex;align-items:center;gap:5px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:12px;color:var(--muted);margin-bottom:14px}
+.bag-desc{font-size:15px;line-height:1.65;color:rgba(240,240,240,.82);white-space:pre-wrap;word-break:break-word}
+.meta{font-size:13px;color:var(--muted);margin-top:16px;display:flex;align-items:center;gap:12px}
+.meta a{color:var(--accent);text-decoration:none;font-weight:500}
+
+.lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:100;align-items:center;justify-content:center}
+.lightbox.open{display:flex}
+.lightbox img{max-width:100%;max-height:100dvh;object-fit:contain}
+.lb-close{position:absolute;top:16px;right:16px;color:#fff;font-size:28px;cursor:pointer;line-height:1;padding:8px;opacity:.8}
+
+.error{padding:60px 20px;text-align:center;color:var(--muted)}
+</style>
+</head>
+<body>
+<div id="gallery-wrap"><div class="gallery-empty">&#128220;</div></div>
+<div class="info" id="info"><div style="color:var(--muted);font-size:14px">Loading...</div></div>
+<div class="lightbox" id="lightbox">
+  <div class="lb-close" id="lb-close">&#10005;</div>
+  <img id="lb-img" src="" alt="">
+</div>
+<script>
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+const id = new URLSearchParams(location.search).get('id');
+
+async function load() {
+  if (!id) { showError('No bag ID in URL.'); return; }
+
+  // Check auth in parallel with bag load (edit link visibility depends on ownership)
+  const [bagRes, meRes] = await Promise.all([
+    fetch(`/api/bags/${id}`),
+    fetch('/api/auth/me'),
+  ]);
+
+  if (!bagRes.ok) { showError('Bag not found.'); return; }
+  const bag = await bagRes.json();
+  const me = meRes.ok ? await meRes.json() : null;
+  const isOwner = me && bag.user_id === me.id;
+
+  document.title = bag.name;
+  renderGallery(bag.images);
+  document.getElementById('info').innerHTML = `
+    <div class="bag-name">${esc(bag.name)}</div>
+    ${bag.location ? `<div class="bag-loc"><span>&#128205;</span>${esc(bag.location)}</div>` : ''}
+    ${bag.description ? `<div class="bag-desc">${esc(bag.description)}</div>` : ''}
+    <div class="meta">
+      <span>${bag.images.length} photo${bag.images.length !== 1 ? 's' : ''}</span>
+      ${isOwner ? `<a href="/admin.html#edit-${esc(bag.id)}">Edit bag</a>` : ''}
+      ${me ? `<a href="/">My bags</a>` : `<a href="/login.html">Sign in</a>`}
+    </div>
+  `;
+}
+
+function renderGallery(images) {
+  const wrap = document.getElementById('gallery-wrap');
+  if (!images.length) {
+    wrap.innerHTML = `<div style="position:relative"><div class="gallery-empty">&#128220;</div><div class="topnav"><a href="javascript:history.back()">&#8592;</a><span></span></div></div>`;
+    return;
+  }
+  const hasDots = images.length > 1;
+  wrap.innerHTML = `
+    <div class="gallery">
+      <div class="gallery-track" id="gt">
+        ${images.map((img, i) => `<img src="/uploads/${esc(img.filename)}" loading="${i === 0 ? 'eager' : 'lazy'}" alt="" data-idx="${i}">`).join('')}
+      </div>
+      ${hasDots ? `<div class="dots" id="dots">${images.map((_,i) => `<div class="dot${i===0?' active':''}"></div>`).join('')}</div>` : ''}
+      <div class="topnav">
+        <a href="javascript:history.back()">&#8592;</a>
+        <span id="counter">${hasDots ? `1 / ${images.length}` : ''}</span>
+      </div>
+    </div>`;
+
+  if (hasDots) {
+    const gt = document.getElementById('gt');
+    const dotEls = document.querySelectorAll('.dot');
+    gt.addEventListener('scroll', () => {
+      const idx = Math.round(gt.scrollLeft / gt.clientWidth);
+      dotEls.forEach((d, i) => d.classList.toggle('active', i === idx));
+      document.getElementById('counter').textContent = `${idx + 1} / ${images.length}`;
+    }, { passive: true });
+  }
+
+  document.getElementById('gt').addEventListener('click', e => {
+    if (e.target.tagName === 'IMG') openLightbox(e.target.src);
+  });
+}
+
+function openLightbox(src) {
+  document.getElementById('lb-img').src = src;
+  document.getElementById('lightbox').classList.add('open');
+}
+document.getElementById('lb-close').addEventListener('click', () => document.getElementById('lightbox').classList.remove('open'));
+document.getElementById('lightbox').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.classList.remove('open'); });
+
+function showError(msg) {
+  document.getElementById('gallery-wrap').innerHTML = '';
+  document.getElementById('info').innerHTML = `<div class="error">${esc(msg)}</div>`;
+}
+
+load();
+</script>
+</body>
+</html>

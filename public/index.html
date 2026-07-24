@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Wardrobe</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0c0c0c;--surface:#181818;--surface2:#242424;
+  --border:#2a2a2a;--accent:#5b8df6;--text:#f0f0f0;--muted:#777;
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100dvh}
+header{display:flex;align-items:center;justify-content:space-between;padding:18px 16px 10px;position:sticky;top:0;background:var(--bg);z-index:10;border-bottom:1px solid var(--border)}
+.header-left h1{font-size:22px;font-weight:700;letter-spacing:-.5px}
+.header-left .welcome{font-size:12px;color:var(--muted);margin-bottom:2px}
+.header-right{display:flex;align-items:center;gap:10px}
+.gear{color:var(--muted);font-size:22px;text-decoration:none;line-height:1;padding:4px}
+.signout-btn{background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:12px;padding:5px 10px;cursor:pointer;font-family:inherit}
+.signout-btn:active{opacity:.7}
+.subtitle{padding:10px 16px 2px;font-size:13px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:12px 16px 100px}
+.card{border-radius:14px;overflow:hidden;background:var(--surface);cursor:pointer;text-decoration:none;display:block;position:relative;aspect-ratio:3/4;transition:opacity .15s,transform .15s}
+.card:active{opacity:.8;transform:scale(.97)}
+.card-img{width:100%;height:100%;object-fit:cover;display:block}
+.card-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:48px;background:var(--surface2)}
+.card-label{position:absolute;bottom:0;left:0;right:0;padding:44px 12px 12px;background:linear-gradient(transparent,rgba(0,0,0,.88))}
+.card-name{font-size:14px;font-weight:600;line-height:1.3;color:#fff}
+.card-loc{font-size:11px;color:rgba(255,255,255,.5);margin-top:2px}
+.empty{grid-column:1/-1;text-align:center;padding:72px 20px;color:var(--muted)}
+.empty-icon{font-size:52px;margin-bottom:12px}
+.empty p{font-size:15px;line-height:1.6}
+.fab{position:fixed;bottom:28px;right:20px;width:58px;height:58px;border-radius:50%;background:var(--accent);color:#fff;font-size:30px;display:flex;align-items:center;justify-content:center;text-decoration:none;box-shadow:0 4px 24px rgba(91,141,246,.45);font-weight:300;line-height:1;transition:transform .15s}
+.fab:active{transform:scale(.9)}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px 12px}
+.action-card{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:16px 8px;background:var(--surface);border-radius:14px;text-decoration:none;color:var(--text);transition:opacity .15s,transform .15s}
+.action-card:active{opacity:.8;transform:scale(.97)}
+.action-icon{font-size:28px}
+.action-label{font-size:13px;font-weight:600;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <div class="header-left">
+    <div class="welcome" id="welcome"></div>
+    <h1>Wardrobe</h1>
+  </div>
+  <div class="header-right">
+    <a href="/admin.html" class="gear" title="Manage bags">&#9881;</a>
+    <button class="signout-btn" onclick="signOut()">Sign out</button>
+  </div>
+</header>
+<div class="subtitle" id="subtitle">&nbsp;</div>
+<div class="actions">
+  <a href="/items.html" class="action-card">
+    <span class="action-icon">&#128084;</span>
+    <span class="action-label">My Wardrobe</span>
+  </a>
+  <a href="/outfit.html" class="action-card">
+    <span class="action-icon">&#128094;</span>
+    <span class="action-label">Build Outfit</span>
+  </a>
+</div>
+<main class="grid" id="grid">
+  <div class="empty"><div class="empty-icon">&#128220;</div><p>Loading...</p></div>
+</main>
+<a href="/admin.html#new" class="fab" title="Add bag">+</a>
+<script>
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+async function signOut() {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  location.href = '/login.html';
+}
+
+async function load() {
+  // Auth check
+  const meRes = await fetch('/api/auth/me');
+  if (!meRes.ok) { location.replace('/login.html'); return; }
+  const me = await meRes.json();
+  document.getElementById('welcome').textContent = `Signed in as ${me.username}`;
+
+  try {
+    const bags = await fetch('/api/bags').then(r => r.json());
+    const subtitle = document.getElementById('subtitle');
+    const grid = document.getElementById('grid');
+    subtitle.textContent = bags.length === 0 ? 'No bags yet' : bags.length === 1 ? '1 bag' : `${bags.length} bags`;
+    if (!bags.length) {
+      grid.innerHTML = `<div class="empty"><div class="empty-icon">&#128220;</div><p>No bags yet.<br>Tap + to create one.</p></div>`;
+      return;
+    }
+    grid.innerHTML = bags.map(b => `
+      <a href="/bag.html?id=${esc(b.id)}" class="card">
+        ${b.cover
+          ? `<img class="card-img" src="/uploads/${esc(b.cover)}" loading="lazy" alt="${esc(b.name)}">`
+          : `<div class="card-placeholder">&#128220;</div>`}
+        <div class="card-label">
+          <div class="card-name">${esc(b.name)}</div>
+          ${b.location ? `<div class="card-loc">&#128205; ${esc(b.location)}</div>` : ''}
+        </div>
+      </a>`).join('');
+  } catch(e) {
+    document.getElementById('grid').innerHTML = `<div class="empty"><p>Failed to load bags.</p></div>`;
+  }
+}
+
+load();
+</script>
+</body>
+</html>

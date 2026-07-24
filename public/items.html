@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>My Wardrobe</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0c0c0c;--surface:#181818;--surface2:#242424;
+  --border:#2a2a2a;--accent:#5b8df6;--text:#f0f0f0;--muted:#777;
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100dvh}
+header{display:flex;align-items:center;justify-content:space-between;padding:18px 16px 10px;position:sticky;top:0;background:var(--bg);z-index:10;border-bottom:1px solid var(--border)}
+.header-left{display:flex;align-items:center;gap:10px}
+.back{color:var(--accent);text-decoration:none;font-size:22px;line-height:1;padding:4px}
+.header-left h1{font-size:22px;font-weight:700;letter-spacing:-.5px}
+.signout-btn{background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:12px;padding:5px 10px;cursor:pointer;font-family:inherit}
+.signout-btn:active{opacity:.7}
+
+.filters{padding:12px 16px 4px;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
+.filters::-webkit-scrollbar{display:none}
+.filter-chip{flex-shrink:0;padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:13px;cursor:pointer;font-family:inherit;transition:all .15s}
+.filter-chip.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.season-filters{padding:4px 16px 8px;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
+.season-filters::-webkit-scrollbar{display:none}
+
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:8px 16px 100px}
+.item-card{border-radius:12px;overflow:hidden;background:var(--surface);cursor:pointer;position:relative;aspect-ratio:3/4;transition:opacity .15s,transform .15s}
+.item-card:active{opacity:.8;transform:scale(.97)}
+.item-img{width:100%;height:100%;object-fit:contain;display:block;background:var(--surface2)}
+.item-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:36px;background:var(--surface2)}
+.item-info{position:absolute;bottom:0;left:0;right:0;padding:24px 8px 8px;background:linear-gradient(transparent,rgba(0,0,0,.9))}
+.item-name{font-size:11px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item-stars{font-size:9px;color:#fbbf24;margin-top:2px}
+.item-seasons{font-size:9px;color:rgba(255,255,255,.5);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.empty{grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--muted);font-size:14px}
+
+.fab{position:fixed;bottom:28px;right:20px;width:58px;height:58px;border-radius:50%;background:var(--accent);color:#fff;font-size:30px;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;box-shadow:0 4px 24px rgba(91,141,246,.45);font-weight:300;line-height:1;transition:transform .15s}
+.fab:active{transform:scale(.9)}
+
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;align-items:flex-end}
+.overlay.open{display:flex}
+.sheet{background:var(--surface);border-radius:20px 20px 0 0;padding:20px 16px 40px;width:100%;max-height:90dvh;overflow-y:auto}
+.sheet-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 16px}
+.sheet h2{font-size:17px;font-weight:700;margin-bottom:16px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:500}
+.field input,.field select{width:100%;padding:11px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:15px;font-family:inherit}
+.field input:focus,.field select:focus{outline:none;border-color:var(--accent)}
+.field select option{background:var(--surface2)}
+
+.season-chips{display:flex;gap:8px;flex-wrap:wrap}
+.season-chip{padding:7px 14px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:13px;cursor:pointer;font-family:inherit}
+.season-chip.selected{background:var(--accent);border-color:var(--accent);color:#fff}
+
+.star-picker{display:flex;gap:4px}
+.star-btn{font-size:24px;cursor:pointer;color:var(--border);background:none;border:none;transition:color .1s;padding:0}
+.star-btn.active{color:#fbbf24}
+
+.upload-area{border:2px dashed var(--border);border-radius:10px;padding:20px;text-align:center;cursor:pointer;color:var(--muted);font-size:14px;position:relative}
+.upload-area input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.upload-preview{width:100%;max-height:160px;object-fit:contain;border-radius:8px;margin-top:8px;display:none}
+
+.btn-row{display:flex;gap:10px;margin-top:16px}
+.btn{flex:1;padding:13px;border-radius:12px;border:none;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s}
+.btn:active{opacity:.7}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-danger{background:#ef4444;color:#fff}
+.btn-ghost{background:var(--surface2);color:var(--text)}
+</style>
+</head>
+<body>
+<header>
+  <div class="header-left">
+    <a href="/" class="back">&#8592;</a>
+    <h1>My Wardrobe</h1>
+  </div>
+  <button class="signout-btn" onclick="signOut()">Sign out</button>
+</header>
+
+<div class="filters" id="catFilters">
+  <button class="filter-chip active" data-cat="">All</button>
+  <button class="filter-chip" data-cat="top">Tops</button>
+  <button class="filter-chip" data-cat="bottom">Bottoms</button>
+  <button class="filter-chip" data-cat="shoes">Shoes</button>
+  <button class="filter-chip" data-cat="jacket">Jackets</button>
+</div>
+<div class="season-filters" id="seasonFilters">
+  <button class="filter-chip active" data-season="">All seasons</button>
+  <button class="filter-chip" data-season="spring">Spring</button>
+  <button class="filter-chip" data-season="summer">Summer</button>
+  <button class="filter-chip" data-season="autumn">Autumn</button>
+  <button class="filter-chip" data-season="winter">Winter</button>
+</div>
+
+<div class="grid" id="grid">
+  <div class="empty">Loading...</div>
+</div>
+
+<button class="fab" onclick="openAdd()">+</button>
+
+<div class="overlay" id="overlay" onclick="closeSheet(event)">
+  <div class="sheet" id="sheet">
+    <div class="sheet-handle"></div>
+    <h2 id="sheetTitle">Add Item</h2>
+    <div class="field">
+      <label>Name</label>
+      <input id="fName" type="text" placeholder="e.g. White Oxford Shirt">
+    </div>
+    <div class="field">
+      <label>Category</label>
+      <select id="fCat">
+        <option value="top">Top</option>
+        <option value="bottom">Bottom</option>
+        <option value="shoes">Shoes</option>
+        <option value="jacket">Jacket</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Seasons</label>
+      <div class="season-chips" id="fSeasons">
+        <button type="button" class="season-chip" data-s="spring">Spring</button>
+        <button type="button" class="season-chip" data-s="summer">Summer</button>
+        <button type="button" class="season-chip" data-s="autumn">Autumn</button>
+        <button type="button" class="season-chip" data-s="winter">Winter</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Rating</label>
+      <div class="star-picker" id="fStars">
+        <button type="button" class="star-btn" data-v="1">&#9733;</button>
+        <button type="button" class="star-btn" data-v="2">&#9733;</button>
+        <button type="button" class="star-btn" data-v="3">&#9733;</button>
+        <button type="button" class="star-btn" data-v="4">&#9733;</button>
+        <button type="button" class="star-btn" data-v="5">&#9733;</button>
+      </div>
+    </div>
+    <div class="field" id="imageField">
+      <label>Image (PNG)</label>
+      <div class="upload-area">
+        <span id="uploadHint">Tap to choose PNG</span>
+        <input type="file" accept="image/png" id="fImage" onchange="previewImage(this)">
+        <img id="imgPreview" class="upload-preview">
+      </div>
+    </div>
+    <div id="sheetBtns" class="btn-row">
+      <button class="btn btn-ghost" onclick="closeOverlay()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveItem()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function stars(n){return n ? '&#9733;'.repeat(n) + '&#9734;'.repeat(5-n) : ''}
+const catIcon = {top:'👕',bottom:'👖',shoes:'👟',jacket:'🧥'};
+
+let activeCat = '';
+let activeSeason = '';
+let editingId = null;
+let rating = 0;
+let itemMap = {};
+
+async function signOut() {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  location.href = '/login.html';
+}
+
+async function load() {
+  const meRes = await fetch('/api/auth/me');
+  if (!meRes.ok) { location.replace('/login.html'); return; }
+  await renderGrid();
+}
+
+async function renderGrid() {
+  const params = new URLSearchParams();
+  if (activeCat) params.set('category', activeCat);
+  if (activeSeason) params.set('season', activeSeason);
+  const items = await fetch('/api/items?' + params).then(r => r.json());
+  itemMap = Object.fromEntries(items.map(it => [it.id, it]));
+  const grid = document.getElementById('grid');
+  if (!items.length) {
+    grid.innerHTML = '<div class="empty">No items yet. Tap + to add one.</div>';
+    return;
+  }
+  grid.innerHTML = items.map(it => `
+    <div class="item-card" data-id="${esc(it.id)}">
+      ${it.filename
+        ? `<img class="item-img" src="/uploads/${esc(it.filename)}" loading="lazy">`
+        : `<div class="item-placeholder">${catIcon[it.category] || '👗'}</div>`}
+      <div class="item-info">
+        <div class="item-name">${esc(it.name)}</div>
+        ${it.rating ? `<div class="item-stars">${stars(it.rating)}</div>` : ''}
+        ${it.seasons ? `<div class="item-seasons">${esc(it.seasons.split(',').join(', '))}</div>` : ''}
+      </div>
+    </div>`).join('');
+
+  document.getElementById('grid').addEventListener('click', e => {
+    const card = e.target.closest('[data-id]');
+    if (card) openEdit(card.dataset.id);
+  }, { once: true });
+}
+
+// Category filters
+document.getElementById('catFilters').addEventListener('click', e => {
+  const chip = e.target.closest('[data-cat]');
+  if (!chip) return;
+  activeCat = chip.dataset.cat;
+  document.querySelectorAll('#catFilters .filter-chip').forEach(c => c.classList.toggle('active', c === chip));
+  renderGrid();
+});
+
+// Season filters
+document.getElementById('seasonFilters').addEventListener('click', e => {
+  const chip = e.target.closest('[data-season]');
+  if (!chip) return;
+  activeSeason = chip.dataset.season;
+  document.querySelectorAll('#seasonFilters .filter-chip').forEach(c => c.classList.toggle('active', c === chip));
+  renderGrid();
+});
+
+// Star picker
+document.getElementById('fStars').addEventListener('click', e => {
+  const btn = e.target.closest('.star-btn');
+  if (!btn) return;
+  rating = parseInt(btn.dataset.v);
+  updateStars();
+});
+
+function updateStars() {
+  document.querySelectorAll('#fStars .star-btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.v) <= rating);
+  });
+}
+
+document.getElementById('fSeasons').addEventListener('click', e => {
+  const chip = e.target.closest('.season-chip');
+  if (chip) chip.classList.toggle('selected');
+});
+
+function getSelectedSeasons() {
+  return [...document.querySelectorAll('#fSeasons .season-chip.selected')].map(c => c.dataset.s).join(',');
+}
+
+function setSelectedSeasons(seasons) {
+  const set = new Set((seasons || '').split(',').filter(Boolean));
+  document.querySelectorAll('#fSeasons .season-chip').forEach(c => {
+    c.classList.toggle('selected', set.has(c.dataset.s));
+  });
+}
+
+function previewImage(input) {
+  const file = input.files[0];
+  const prev = document.getElementById('imgPreview');
+  const hint = document.getElementById('uploadHint');
+  if (file) {
+    prev.src = URL.createObjectURL(file);
+    prev.style.display = 'block';
+    hint.textContent = file.name;
+  }
+}
+
+function openAdd() {
+  editingId = null;
+  rating = 0;
+  document.getElementById('sheetTitle').textContent = 'Add Item';
+  document.getElementById('fName').value = '';
+  document.getElementById('fCat').value = 'top';
+  setSelectedSeasons('');
+  updateStars();
+  document.getElementById('fImage').value = '';
+  document.getElementById('imgPreview').style.display = 'none';
+  document.getElementById('uploadHint').textContent = 'Tap to choose PNG';
+  document.getElementById('imageField').style.display = '';
+  document.getElementById('sheetBtns').innerHTML = `
+    <button class="btn btn-ghost" onclick="closeOverlay()">Cancel</button>
+    <button class="btn btn-primary" onclick="saveItem()">Save</button>`;
+  document.getElementById('overlay').classList.add('open');
+}
+
+function openEdit(id) {
+  const it = itemMap[id];
+  if (!it) return;
+  editingId = it.id;
+  rating = it.rating || 0;
+  document.getElementById('sheetTitle').textContent = 'Edit Item';
+  document.getElementById('fName').value = it.name;
+  document.getElementById('fCat').value = it.category;
+  setSelectedSeasons(it.seasons);
+  updateStars();
+  document.getElementById('imageField').style.display = 'none';
+  document.getElementById('sheetBtns').innerHTML = `
+    <button class="btn btn-danger" id="deleteBtn">Delete</button>
+    <button class="btn btn-ghost" onclick="closeOverlay()">Cancel</button>
+    <button class="btn btn-primary" onclick="saveItem()">Save</button>`;
+  document.getElementById('deleteBtn').onclick = () => deleteItem(it.id);
+  document.getElementById('overlay').classList.add('open');
+}
+
+function closeOverlay() {
+  document.getElementById('overlay').classList.remove('open');
+}
+
+function closeSheet(e) {
+  if (e.target === document.getElementById('overlay')) closeOverlay();
+}
+
+async function saveItem() {
+  const name = document.getElementById('fName').value.trim();
+  const category = document.getElementById('fCat').value;
+  const seasons = getSelectedSeasons();
+  if (!name) { alert('Name is required'); return; }
+
+  if (editingId) {
+    await fetch(`/api/items/${editingId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, category, seasons, rating: rating || null }),
+    });
+  } else {
+    const fd = new FormData();
+    fd.append('name', name);
+    fd.append('category', category);
+    fd.append('seasons', seasons);
+    if (rating) fd.append('rating', rating);
+    const file = document.getElementById('fImage').files[0];
+    if (file) fd.append('image', file);
+    await fetch('/api/items', { method: 'POST', body: fd });
+  }
+  closeOverlay();
+  renderGrid();
+}
+
+async function deleteItem(id) {
+  if (!confirm('Delete this item?')) return;
+  await fetch(`/api/items/${id}`, { method: 'DELETE' });
+  closeOverlay();
+  renderGrid();
+}
+
+load();
+</script>
+</body>
+</html>

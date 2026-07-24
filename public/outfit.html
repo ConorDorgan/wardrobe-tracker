@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Outfit Builder</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0c0c0c;--surface:#181818;--surface2:#242424;
+  --border:#2a2a2a;--accent:#5b8df6;--text:#f0f0f0;--muted:#777;
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100dvh;padding-bottom:40px}
+header{display:flex;align-items:center;justify-content:space-between;padding:18px 16px 10px;position:sticky;top:0;background:var(--bg);z-index:10;border-bottom:1px solid var(--border)}
+.header-left{display:flex;align-items:center;gap:10px}
+.back{color:var(--accent);text-decoration:none;font-size:22px;line-height:1;padding:4px}
+.header-left h1{font-size:22px;font-weight:700;letter-spacing:-.5px}
+.signout-btn{background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:12px;padding:5px 10px;cursor:pointer;font-family:inherit}
+
+.canvas-wrap{padding:16px}
+.outfit-canvas{
+  display:grid;
+  grid-template-columns:42% 58%;
+  grid-template-rows:auto auto auto;
+  gap:8px;
+  padding:12px;
+  background:#181818;
+  border-radius:16px;
+}
+.slot{border-radius:12px;overflow:hidden;position:relative;cursor:pointer;transition:opacity .15s}
+.slot:active{opacity:.8}
+.slot-jacket{grid-column:1;grid-row:1/3;min-height:220px}
+.slot-top{grid-column:2;grid-row:1}
+.slot-bottom{grid-column:2;grid-row:2}
+.slot-shoes{grid-column:2;grid-row:3}
+.slot-top,.slot-bottom,.slot-shoes{aspect-ratio:1/1}
+.slot-empty{background:var(--surface2);border:2px dashed var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;height:100%;border-radius:12px;min-height:80px}
+.slot-empty-icon{font-size:22px;color:var(--muted)}
+.slot-empty-label{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.slot img{width:100%;height:100%;object-fit:contain;background:var(--surface2);display:block}
+.slot-clear{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.7);color:#fff;border:none;font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
+
+.controls{padding:0 16px 16px;display:flex;flex-direction:column;gap:10px}
+.outfit-name{width:100%;padding:11px 12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:15px;font-family:inherit}
+.outfit-name:focus{outline:none;border-color:var(--accent)}
+.btn-row{display:flex;gap:10px}
+.btn{flex:1;padding:13px;border-radius:12px;border:none;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s}
+.btn:active{opacity:.7}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-ghost{background:var(--surface);color:var(--text)}
+
+.section-title{padding:8px 16px 6px;font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.saved-scroll{display:flex;gap:10px;overflow-x:auto;padding:0 16px 16px;scrollbar-width:none}
+.saved-scroll::-webkit-scrollbar{display:none}
+.saved-card{flex-shrink:0;width:120px;background:var(--surface);border-radius:12px;overflow:hidden;cursor:pointer;position:relative;transition:opacity .15s,transform .15s}
+.saved-card:active{opacity:.8;transform:scale(.97)}
+.mini-canvas{display:grid;grid-template-columns:42% 58%;grid-template-rows:1fr 1fr 1fr;gap:2px;padding:6px;background:var(--surface2);border-radius:8px 8px 0 0;height:100px}
+.mini-slot{border-radius:4px;overflow:hidden;background:var(--surface)}
+.mini-slot-jacket{grid-column:1;grid-row:1/3}
+.mini-slot-top{grid-column:2;grid-row:1}
+.mini-slot-bottom{grid-column:2;grid-row:2}
+.mini-slot-shoes{grid-column:2;grid-row:3}
+.mini-slot img{width:100%;height:100%;object-fit:contain;background:var(--surface2)}
+.saved-name{padding:5px 8px 6px;font-size:11px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.saved-del{position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.7);color:#fff;border:none;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
+.no-saved{padding:12px 16px 24px;color:var(--muted);font-size:14px}
+
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;align-items:flex-end}
+.overlay.open{display:flex}
+.sheet{background:var(--surface);border-radius:20px 20px 0 0;padding:16px 0 40px;width:100%;max-height:80dvh;display:flex;flex-direction:column}
+.sheet-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 12px}
+.sheet-header{padding:0 16px 12px;font-size:17px;font-weight:700;border-bottom:1px solid var(--border)}
+.picker-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px 16px;overflow-y:auto;flex:1}
+.picker-card{border-radius:10px;overflow:hidden;background:var(--surface2);cursor:pointer;position:relative;aspect-ratio:1;transition:opacity .15s}
+.picker-card:active{opacity:.8}
+.picker-card.selected{outline:2px solid var(--accent)}
+.picker-img{width:100%;height:100%;object-fit:contain;display:block}
+.picker-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px}
+.picker-label{position:absolute;bottom:0;left:0;right:0;padding:14px 6px 6px;background:linear-gradient(transparent,rgba(0,0,0,.85));font-size:10px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.picker-stars{font-size:9px;color:#fbbf24}
+.picker-empty{grid-column:1/-1;text-align:center;padding:40px;color:var(--muted);font-size:14px}
+</style>
+</head>
+<body>
+<header>
+  <div class="header-left">
+    <a href="/" class="back">&#8592;</a>
+    <h1>Outfit Builder</h1>
+  </div>
+  <button class="signout-btn" onclick="signOut()">Sign out</button>
+</header>
+
+<div class="canvas-wrap">
+  <div class="outfit-canvas">
+    <div class="slot slot-jacket" id="slot-jacket"></div>
+    <div class="slot slot-top"    id="slot-top"></div>
+    <div class="slot slot-bottom" id="slot-bottom"></div>
+    <div class="slot slot-shoes"  id="slot-shoes"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <input class="outfit-name" id="outfitName" type="text" placeholder="Outfit name (optional)">
+  <div class="btn-row">
+    <button class="btn btn-ghost" onclick="clearAll()">Clear All</button>
+    <button class="btn btn-primary" onclick="saveOutfit()">Save Outfit</button>
+  </div>
+</div>
+
+<div class="section-title">Saved Outfits</div>
+<div class="saved-scroll" id="savedScroll">
+  <span class="no-saved">No saved outfits yet.</span>
+</div>
+
+<div class="overlay" id="overlay" onclick="closeSheet(event)">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header" id="pickerTitle">Select</div>
+    <div class="picker-grid" id="pickerGrid"></div>
+  </div>
+</div>
+
+<script>
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function stars(n){return n ? '&#9733;'.repeat(n) : ''}
+const catIcon = {top:'👕',bottom:'👖',shoes:'👟',jacket:'🧥'};
+const catLabel = {top:'Top',bottom:'Bottom',shoes:'Shoes',jacket:'Jacket'};
+
+let slots = {top:null,bottom:null,shoes:null,jacket:null};
+let allItems = [];
+let itemById = {};
+let savedOutfits = [];
+let pickerCat = '';
+
+async function signOut(){
+  await fetch('/api/auth/logout',{method:'POST'});
+  location.href='/login.html';
+}
+
+async function load(){
+  const meRes = await fetch('/api/auth/me');
+  if(!meRes.ok){location.replace('/login.html');return;}
+  allItems = await fetch('/api/items').then(r=>r.json());
+  itemById = Object.fromEntries(allItems.map(i=>[i.id,i]));
+  ['top','bottom','shoes','jacket'].forEach(renderSlot);
+  await renderSaved();
+}
+
+function renderSlot(cat){
+  const el = document.getElementById('slot-'+cat);
+  const item = slots[cat];
+  if(!item){
+    el.innerHTML = `<div class="slot-empty"><span class="slot-empty-icon">${catIcon[cat]}</span><span class="slot-empty-label">${catLabel[cat]}</span></div>`;
+  } else {
+    el.innerHTML = `
+      ${item.filename
+        ? `<img src="/uploads/${esc(item.filename)}" alt="${esc(item.name)}">`
+        : `<div class="slot-empty"><span class="slot-empty-icon">${catIcon[cat]}</span></div>`}
+      <button class="slot-clear" data-cat="${cat}">&#10005;</button>`;
+  }
+  el.onclick = () => openPicker(cat);
+}
+
+document.querySelector('.outfit-canvas').addEventListener('click', e => {
+  const btn = e.target.closest('.slot-clear');
+  if(btn){
+    e.stopPropagation();
+    const cat = btn.dataset.cat;
+    slots[cat] = null;
+    renderSlot(cat);
+  }
+});
+
+function clearAll(){
+  ['top','bottom','shoes','jacket'].forEach(c=>{slots[c]=null;renderSlot(c);});
+  document.getElementById('outfitName').value='';
+}
+
+function openPicker(cat){
+  pickerCat = cat;
+  document.getElementById('pickerTitle').textContent = 'Select ' + catLabel[cat];
+  const items = allItems.filter(i=>i.category===cat);
+  const grid = document.getElementById('pickerGrid');
+  if(!items.length){
+    grid.innerHTML = `<div class="picker-empty">No ${catLabel[cat].toLowerCase()}s in wardrobe.<br><a href="/items.html" style="color:var(--accent)">Add some</a></div>`;
+  } else {
+    const current = slots[cat];
+    grid.innerHTML = items.map(it=>`
+      <div class="picker-card${current&&current.id===it.id?' selected':''}" data-pick="${esc(it.id)}">
+        ${it.filename
+          ? `<img class="picker-img" src="/uploads/${esc(it.filename)}">`
+          : `<div class="picker-placeholder">${catIcon[it.category]}</div>`}
+        <div class="picker-label">
+          ${esc(it.name)}
+          ${it.rating?`<div class="picker-stars">${stars(it.rating)}</div>`:''}
+        </div>
+      </div>`).join('');
+  }
+  document.getElementById('overlay').classList.add('open');
+}
+
+document.getElementById('pickerGrid').addEventListener('click', e => {
+  const card = e.target.closest('[data-pick]');
+  if(!card) return;
+  const item = itemById[card.dataset.pick];
+  if(item){
+    slots[pickerCat] = item;
+    renderSlot(pickerCat);
+  }
+  document.getElementById('overlay').classList.remove('open');
+});
+
+function closeSheet(e){
+  if(e.target===document.getElementById('overlay'))
+    document.getElementById('overlay').classList.remove('open');
+}
+
+async function saveOutfit(){
+  const name = document.getElementById('outfitName').value.trim();
+  const body = {
+    name,
+    top_id:    slots.top    ? slots.top.id    : null,
+    bottom_id: slots.bottom ? slots.bottom.id : null,
+    shoes_id:  slots.shoes  ? slots.shoes.id  : null,
+    jacket_id: slots.jacket ? slots.jacket.id : null,
+  };
+  await fetch('/api/outfits',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  await renderSaved();
+}
+
+async function renderSaved(){
+  savedOutfits = await fetch('/api/outfits').then(r=>r.json());
+  const container = document.getElementById('savedScroll');
+  if(!savedOutfits.length){
+    container.innerHTML='<span class="no-saved">No saved outfits yet.</span>';
+    return;
+  }
+  container.innerHTML = savedOutfits.map(o=>`
+    <div class="saved-card" data-outfit="${esc(o.id)}">
+      <div class="mini-canvas">
+        <div class="mini-slot mini-slot-jacket">${o.jacket_filename?`<img src="/uploads/${esc(o.jacket_filename)}">`:'&nbsp;'}</div>
+        <div class="mini-slot mini-slot-top">${o.top_filename?`<img src="/uploads/${esc(o.top_filename)}">`:'&nbsp;'}</div>
+        <div class="mini-slot mini-slot-bottom">${o.bottom_filename?`<img src="/uploads/${esc(o.bottom_filename)}">`:'&nbsp;'}</div>
+        <div class="mini-slot mini-slot-shoes">${o.shoes_filename?`<img src="/uploads/${esc(o.shoes_filename)}">`:'&nbsp;'}</div>
+      </div>
+      <div class="saved-name">${esc(o.name)||'Untitled'}</div>
+      <button class="saved-del" data-del="${esc(o.id)}">&#10005;</button>
+    </div>`).join('');
+}
+
+document.getElementById('savedScroll').addEventListener('click', e => {
+  const delBtn = e.target.closest('[data-del]');
+  if(delBtn){
+    e.stopPropagation();
+    deleteOutfit(delBtn.dataset.del);
+    return;
+  }
+  const card = e.target.closest('[data-outfit]');
+  if(card) loadOutfit(card.dataset.outfit);
+});
+
+function loadOutfit(id){
+  const o = savedOutfits.find(x=>x.id===id);
+  if(!o) return;
+  document.getElementById('outfitName').value = o.name || '';
+  slots.top    = o.top_id    ? (itemById[o.top_id]    || {id:o.top_id,    filename:o.top_filename,    name:o.top_name,    category:'top'})    : null;
+  slots.bottom = o.bottom_id ? (itemById[o.bottom_id] || {id:o.bottom_id, filename:o.bottom_filename, name:o.bottom_name, category:'bottom'}) : null;
+  slots.shoes  = o.shoes_id  ? (itemById[o.shoes_id]  || {id:o.shoes_id,  filename:o.shoes_filename,  name:o.shoes_name,  category:'shoes'})  : null;
+  slots.jacket = o.jacket_id ? (itemById[o.jacket_id] || {id:o.jacket_id, filename:o.jacket_filename, name:o.jacket_name, category:'jacket'}) : null;
+  ['top','bottom','shoes','jacket'].forEach(renderSlot);
+}
+
+async function deleteOutfit(id){
+  await fetch(`/api/outfits/${id}`,{method:'DELETE'});
+  await renderSaved();
+}
+
+load();
+</script>
+</body>
+</html>
