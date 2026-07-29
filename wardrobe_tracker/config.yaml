@@ -1,6 +1,6 @@
 name: "Wardrobe Tracker"
 url: "https://github.com/ConorDorgan/wardrobe-tracker"
-version: "1.1.0"
+version: "1.2.0"
 slug: "wardrobe_tracker"
 description: "NFC-enabled wardrobe bag tracker with photo gallery"
 arch:
@@ -15,5 +15,12 @@ ports_description:
   8098/tcp: "Wardrobe Tracker Web UI"
 map:
   - data:rw
-options: {}
-schema: {}
+homeassistant_api: true
+options:
+  notify_service: ""
+  public_url: ""
+  wash_token: ""
+schema:
+  notify_service: str
+  public_url: str
+  wash_token: str?

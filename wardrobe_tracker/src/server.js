@@ -17,6 +17,10 @@ const PORT = parseInt(process.env.PORT || '8098', 10);
 
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
+// Load HA add-on options (present at /data/options.json when running under Supervisor)
+let addonOptions = {};
+try { addonOptions = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'options.json'), 'utf8')); } catch (_) {}
+
 const db = new Database(DB_PATH);
 db.pragma('foreign_keys = ON');
 db.pragma('journal_mode = WAL');
@@ -72,10 +76,26 @@ db.exec(`
     jacket_id TEXT REFERENCES items(id) ON DELETE SET NULL,
     created_at INTEGER NOT NULL DEFAULT (unixepoch())
   );
+
+  CREATE TABLE IF NOT EXISTS wishlist (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT 'other',
+    note TEXT NOT NULL DEFAULT '',
+    link TEXT NOT NULL DEFAULT '',
+    filename TEXT,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+  );
 `);
 
-// Migration: add user_id to bags if not present (handles existing installs)
+// Migrations — each wrapped in try/catch, no-ops if column already exists
 try { db.exec('ALTER TABLE bags ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE SET NULL'); } catch (_) {}
+try { db.exec("ALTER TABLE items ADD COLUMN occasions TEXT NOT NULL DEFAULT ''"); } catch (_) {}
+try { db.exec("ALTER TABLE items ADD COLUMN status TEXT NOT NULL DEFAULT 'wardrobe'"); } catch (_) {}
+try { db.exec('ALTER TABLE items ADD COLUMN location_bag_id TEXT REFERENCES bags(id) ON DELETE SET NULL'); } catch (_) {}
+try { db.exec('ALTER TABLE items ADD COLUMN wear_count INTEGER NOT NULL DEFAULT 0'); } catch (_) {}
+try { db.exec('ALTER TABLE items ADD COLUMN last_worn INTEGER'); } catch (_) {}
 
 // Purge expired sessions every 15 min
 setInterval(() => db.prepare('DELETE FROM sessions WHERE expires < ?').run(Date.now()), 15 * 60 * 1000);
@@ -147,6 +167,34 @@ function requireAdmin(req, res, next) {
 function ownsBag(userId, bagId) {
   const bag = db.prepare('SELECT user_id FROM bags WHERE id = ?').get(bagId);
   return bag && bag.user_id === userId;
+}
+
+const VALID_OCCASIONS = new Set(['casual','pub','work','formal','night_out','sport','holiday']);
+const VALID_STATUSES  = new Set(['wardrobe','rail','wash','floor','bag']);
+
+function sanitiseOccasions(raw) {
+  return (raw || '').split(',').map(s => s.trim()).filter(s => VALID_OCCASIONS.has(s)).join(',');
+}
+
+// --- Push notification helper ---
+async function sendWashPrompt(count) {
+  const supervisorToken = process.env.SUPERVISOR_TOKEN;
+  const notifyService = addonOptions.notify_service;
+  if (!supervisorToken || !notifyService) return;
+  const url = (addonOptions.public_url || '') + '/laundry.html';
+  try {
+    await fetch(`http://supervisor/core/api/services/notify/${notifyService}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${supervisorToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Laundry check',
+        message: count > 0
+          ? `${count} item${count !== 1 ? 's' : ''} to sort — tap to open`
+          : 'No items need sorting right now',
+        data: { url, clickAction: url },
+      }),
+    });
+  } catch (_) {}
 }
 
 // --- Setup ---
@@ -306,11 +354,13 @@ app.delete('/api/images/:id', requireAuth, (req, res) => {
 
 // --- Items ---
 app.get('/api/items', requireAuth, (req, res) => {
-  const { category, season } = req.query;
+  const { category, season, occasion, status } = req.query;
   let sql = 'SELECT * FROM items WHERE user_id = ?';
   const params = [req.session.userId];
   if (category) { sql += ' AND category = ?'; params.push(category); }
-  if (season) { sql += " AND (',' || seasons || ',' LIKE ?)"; params.push(`%,${season},%`); }
+  if (season)   { sql += " AND (',' || seasons || ',' LIKE ?)"; params.push(`%,${season},%`); }
+  if (occasion) { sql += " AND (',' || occasions || ',' LIKE ?)"; params.push(`%,${occasion},%`); }
+  if (status)   { sql += ' AND status = ?'; params.push(status); }
   sql += ' ORDER BY created_at DESC';
   res.json(db.prepare(sql).all(...params));
 });
@@ -322,25 +372,25 @@ app.get('/api/items/:id', requireAuth, (req, res) => {
 });
 
 app.post('/api/items', requireAuth, upload.single('image'), (req, res) => {
-  const { name, category, seasons = '', rating } = req.body;
+  const { name, category, seasons = '', occasions = '', rating } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
   if (!['top','bottom','shoes','jacket'].includes(category)) return res.status(400).json({ error: 'Invalid category' });
   const id = uuidv4();
   const ratingVal = rating ? parseInt(rating, 10) : null;
-  db.prepare('INSERT INTO items (id, user_id, name, category, seasons, rating, filename) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .run(id, req.session.userId, name.trim(), category, seasons, ratingVal, req.file?.filename || null);
+  db.prepare('INSERT INTO items (id, user_id, name, category, seasons, occasions, rating, filename) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(id, req.session.userId, name.trim(), category, seasons, sanitiseOccasions(occasions), ratingVal, req.file?.filename || null);
   res.status(201).json({ id });
 });
 
 app.put('/api/items/:id', requireAuth, (req, res) => {
   const item = db.prepare('SELECT id FROM items WHERE id = ? AND user_id = ?').get(req.params.id, req.session.userId);
   if (!item) return res.status(404).json({ error: 'Not found' });
-  const { name, category, seasons = '', rating } = req.body;
+  const { name, category, seasons = '', occasions = '', rating } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
   if (!['top','bottom','shoes','jacket'].includes(category)) return res.status(400).json({ error: 'Invalid category' });
   const ratingVal = rating ? parseInt(rating, 10) : null;
-  db.prepare('UPDATE items SET name = ?, category = ?, seasons = ?, rating = ? WHERE id = ?')
-    .run(name.trim(), category, seasons, ratingVal, req.params.id);
+  db.prepare('UPDATE items SET name = ?, category = ?, seasons = ?, occasions = ?, rating = ? WHERE id = ?')
+    .run(name.trim(), category, seasons, sanitiseOccasions(occasions), ratingVal, req.params.id);
   res.json({ ok: true });
 });
 
@@ -349,6 +399,24 @@ app.delete('/api/items/:id', requireAuth, (req, res) => {
   if (!item) return res.status(404).json({ error: 'Not found' });
   db.prepare('DELETE FROM items WHERE id = ?').run(req.params.id);
   if (item.filename) fs.unlink(path.join(UPLOADS_DIR, item.filename), () => {});
+  res.json({ ok: true });
+});
+
+app.put('/api/items/:id/status', requireAuth, (req, res) => {
+  const item = db.prepare('SELECT id FROM items WHERE id = ? AND user_id = ?').get(req.params.id, req.session.userId);
+  if (!item) return res.status(404).json({ error: 'Not found' });
+  const { status, bag_id = null } = req.body;
+  if (!VALID_STATUSES.has(status)) return res.status(400).json({ error: 'Invalid status' });
+  db.prepare('UPDATE items SET status = ?, location_bag_id = ? WHERE id = ?')
+    .run(status, status === 'bag' ? bag_id : null, req.params.id);
+  res.json({ ok: true });
+});
+
+app.post('/api/items/wear', requireAuth, (req, res) => {
+  const { ids = [] } = req.body;
+  if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'ids array required' });
+  const stmt = db.prepare("UPDATE items SET wear_count = wear_count + 1, last_worn = unixepoch(), status = 'floor' WHERE id = ? AND user_id = ?");
+  db.transaction(() => ids.forEach(id => stmt.run(id, req.session.userId)))();
   res.json({ ok: true });
 });
 
@@ -383,6 +451,62 @@ app.delete('/api/outfits/:id', requireAuth, (req, res) => {
   const result = db.prepare('DELETE FROM outfits WHERE id = ? AND user_id = ?').run(req.params.id, req.session.userId);
   if (!result.changes) return res.status(404).json({ error: 'Not found' });
   res.json({ ok: true });
+});
+
+// --- Wishlist ---
+app.get('/api/wishlist', requireAuth, (req, res) => {
+  res.json(db.prepare('SELECT * FROM wishlist WHERE user_id = ? ORDER BY created_at DESC').all(req.session.userId));
+});
+
+app.post('/api/wishlist', requireAuth, upload.single('image'), (req, res) => {
+  const { name, category = 'other', note = '', link = '' } = req.body;
+  if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
+  const id = uuidv4();
+  db.prepare('INSERT INTO wishlist (id, user_id, name, category, note, link, filename) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(id, req.session.userId, name.trim(), category, note.trim(), link.trim(), req.file?.filename || null);
+  res.status(201).json({ id });
+});
+
+app.put('/api/wishlist/:id', requireAuth, (req, res) => {
+  const item = db.prepare('SELECT id FROM wishlist WHERE id = ? AND user_id = ?').get(req.params.id, req.session.userId);
+  if (!item) return res.status(404).json({ error: 'Not found' });
+  const { name, category = 'other', note = '', link = '' } = req.body;
+  if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
+  db.prepare('UPDATE wishlist SET name = ?, category = ?, note = ?, link = ? WHERE id = ?')
+    .run(name.trim(), category, note.trim(), link.trim(), req.params.id);
+  res.json({ ok: true });
+});
+
+app.delete('/api/wishlist/:id', requireAuth, (req, res) => {
+  const item = db.prepare('SELECT filename FROM wishlist WHERE id = ? AND user_id = ?').get(req.params.id, req.session.userId);
+  if (!item) return res.status(404).json({ error: 'Not found' });
+  db.prepare('DELETE FROM wishlist WHERE id = ?').run(req.params.id);
+  if (item.filename) fs.unlink(path.join(UPLOADS_DIR, item.filename), () => {});
+  res.json({ ok: true });
+});
+
+// --- Laundry ---
+app.get('/api/laundry', requireAuth, (req, res) => {
+  res.json(db.prepare(
+    "SELECT * FROM items WHERE user_id = ? AND status IN ('floor','wash') ORDER BY last_worn DESC, name ASC"
+  ).all(req.session.userId));
+});
+
+app.post('/api/laundry/prompt', async (req, res) => {
+  const washToken = addonOptions.wash_token;
+  const headerToken = req.headers['x-wash-token'];
+  const authed = req.session.userId || (washToken && headerToken === washToken);
+  if (!authed) return res.status(401).json({ error: 'Unauthorized' });
+
+  if (req.session.userId) {
+    const count = db.prepare("SELECT COUNT(*) as n FROM items WHERE user_id = ? AND status IN ('floor','wash')").get(req.session.userId).n;
+    await sendWashPrompt(count);
+    return res.json({ ok: true, count });
+  }
+
+  const count = db.prepare("SELECT COUNT(*) as n FROM items WHERE status IN ('floor','wash')").get().n;
+  await sendWashPrompt(count);
+  res.json({ ok: true, count });
 });
 
 app.listen(PORT, '0.0.0.0', () => console.log(`Wardrobe tracker on :${PORT}`));

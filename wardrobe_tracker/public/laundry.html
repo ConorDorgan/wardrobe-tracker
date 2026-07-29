@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="manifest" href="/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Wardrobe">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<title>Laundry</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0c0c0c;--surface:#181818;--surface2:#242424;
+  --border:#2a2a2a;--accent:#5b8df6;--text:#f0f0f0;--muted:#777;
+  --success:#4caf84;--warn:#e0903a;
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100dvh;padding-bottom:40px}
+header{display:flex;align-items:center;justify-content:space-between;padding:18px 16px 10px;position:sticky;top:0;background:var(--bg);z-index:10;border-bottom:1px solid var(--border)}
+.header-left{display:flex;align-items:center;gap:10px}
+.back{color:var(--accent);text-decoration:none;font-size:22px;line-height:1;padding:4px}
+.header-left h1{font-size:22px;font-weight:700;letter-spacing:-.5px}
+.signout-btn{background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:12px;padding:5px 10px;cursor:pointer;font-family:inherit}
+.signout-btn:active{opacity:.7}
+
+.section-header{display:flex;align-items:center;gap:8px;padding:16px 16px 8px;font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.badge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;border-radius:10px;background:var(--accent);color:#fff;font-size:11px;font-weight:700;padding:0 5px}
+.badge-warn{background:var(--warn)}
+
+.item-row{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--surface);margin:0 16px 8px;border-radius:12px}
+.item-thumb{width:48px;height:48px;border-radius:8px;object-fit:contain;background:var(--surface2);flex-shrink:0}
+.item-thumb-ph{width:48px;height:48px;border-radius:8px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0}
+.item-meta{flex:1;min-width:0}
+.item-meta-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item-meta-cat{font-size:11px;color:var(--muted);margin-top:2px}
+.item-actions{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
+.act-btn{padding:6px 10px;border-radius:8px;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s;white-space:nowrap}
+.act-btn:active{opacity:.7}
+.act-wash{background:rgba(91,141,246,.15);color:var(--accent)}
+.act-done{background:rgba(76,175,132,.15);color:var(--success)}
+.act-rail{background:var(--surface2);color:var(--text)}
+
+.empty-state{text-align:center;padding:60px 20px;color:var(--muted);font-size:14px}
+.empty-icon{font-size:48px;margin-bottom:12px}
+
+.remind-btn{display:block;margin:16px 16px 0;padding:13px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;width:calc(100% - 32px);transition:opacity .15s;text-align:center}
+.remind-btn:active{opacity:.7}
+.remind-btn:disabled{opacity:.4}
+
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 18px;font-size:14px;font-weight:500;z-index:100;pointer-events:none;opacity:0;transition:opacity .2s;white-space:nowrap}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <div class="header-left">
+    <a href="/" class="back">&#8592;</a>
+    <h1>Laundry</h1>
+  </div>
+  <button class="signout-btn" onclick="signOut()">Sign out</button>
+</header>
+
+<div id="content"><div class="empty-state"><div class="empty-icon">&#9989;</div><p>Loading...</p></div></div>
+<div id="toast" class="toast"></div>
+
+<script>
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+const catIcon = {top:'👕',bottom:'👖',shoes:'👟',jacket:'🧥'};
+
+async function signOut() {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  location.href = '/login.html';
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+async function load() {
+  const meRes = await fetch('/api/auth/me');
+  if (!meRes.ok) { location.replace('/login.html'); return; }
+  await render();
+}
+
+async function setStatus(id, status) {
+  await fetch(`/api/items/${id}/status`, {
+    method: 'PUT',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ status }),
+  });
+  await render();
+}
+
+async function sendReminder() {
+  const btn = document.getElementById('remindBtn');
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch('/api/laundry/prompt', { method: 'POST' });
+    const data = await res.json();
+    toast(res.ok ? 'Reminder sent' : 'Push not configured');
+  } catch (_) { toast('Error sending reminder'); }
+  if (btn) btn.disabled = false;
+}
+
+function itemRow(it, isFloor) {
+  const thumb = it.filename
+    ? `<img class="item-thumb" src="/uploads/${esc(it.filename)}" loading="lazy">`
+    : `<div class="item-thumb-ph">${catIcon[it.category]||'👗'}</div>`;
+  const actions = isFloor
+    ? `<button class="act-btn act-wash" onclick="setStatus('${esc(it.id)}','wash')">Wash</button>
+       <button class="act-btn act-rail" onclick="setStatus('${esc(it.id)}','rail')">Rail</button>
+       <button class="act-btn act-done" onclick="setStatus('${esc(it.id)}','wardrobe')">Away</button>`
+    : `<button class="act-btn act-rail" onclick="setStatus('${esc(it.id)}','rail')">Rail</button>
+       <button class="act-btn act-done" onclick="setStatus('${esc(it.id)}','wardrobe')">Away</button>`;
+  return `<div class="item-row">${thumb}<div class="item-meta"><div class="item-meta-name">${esc(it.name)}</div><div class="item-meta-cat">${it.category}</div></div><div class="item-actions">${actions}</div></div>`;
+}
+
+async function render() {
+  const items = await fetch('/api/laundry').then(r => r.json());
+  const floor = items.filter(i => i.status === 'floor');
+  const wash  = items.filter(i => i.status === 'wash');
+  const content = document.getElementById('content');
+
+  if (!items.length) {
+    content.innerHTML = `
+      <div class="empty-state"><div class="empty-icon">&#9989;</div><p>All sorted — nothing needs attention.</p></div>
+      <button id="remindBtn" class="remind-btn" onclick="sendReminder()">Send laundry reminder</button>`;
+    return;
+  }
+
+  let html = '';
+  if (floor.length) {
+    html += `<div class="section-header">On the floor <span class="badge badge-warn">${floor.length}</span></div>`;
+    html += floor.map(it => itemRow(it, true)).join('');
+  }
+  if (wash.length) {
+    html += `<div class="section-header">In the wash <span class="badge">${wash.length}</span></div>`;
+    html += wash.map(it => itemRow(it, false)).join('');
+  }
+  html += `<button id="remindBtn" class="remind-btn" onclick="sendReminder()">Send laundry reminder</button>`;
+  content.innerHTML = html;
+}
+
+load();
+</script>
+</body>
+</html>

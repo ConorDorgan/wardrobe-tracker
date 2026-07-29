@@ -25,10 +25,11 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 
 .filters{padding:12px 16px 4px;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
 .filters::-webkit-scrollbar{display:none}
+.filter-row{padding:4px 16px 4px;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
+.filter-row::-webkit-scrollbar{display:none}
+.filter-row:last-of-type{padding-bottom:8px}
 .filter-chip{flex-shrink:0;padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:13px;cursor:pointer;font-family:inherit;transition:all .15s}
 .filter-chip.active{background:var(--accent);border-color:var(--accent);color:#fff}
-.season-filters{padding:4px 16px 8px;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
-.season-filters::-webkit-scrollbar{display:none}
 
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:8px 16px 100px}
 .item-card{border-radius:12px;overflow:hidden;background:var(--surface);cursor:pointer;position:relative;aspect-ratio:3/4;transition:opacity .15s,transform .15s}
@@ -38,7 +39,8 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .item-info{position:absolute;bottom:0;left:0;right:0;padding:24px 8px 8px;background:linear-gradient(transparent,rgba(0,0,0,.9))}
 .item-name{font-size:11px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .item-stars{font-size:9px;color:#fbbf24;margin-top:2px}
-.item-seasons{font-size:9px;color:rgba(255,255,255,.5);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item-meta{font-size:9px;color:rgba(255,255,255,.5);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item-occ{font-size:9px;color:rgba(91,141,246,.8);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .empty{grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--muted);font-size:14px}
 
 .fab{position:fixed;bottom:28px;right:20px;width:58px;height:58px;border-radius:50%;background:var(--accent);color:#fff;font-size:30px;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;box-shadow:0 4px 24px rgba(91,141,246,.45);font-weight:300;line-height:1;transition:transform .15s}
@@ -55,9 +57,9 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .field input:focus,.field select:focus{outline:none;border-color:var(--accent)}
 .field select option{background:var(--surface2)}
 
-.season-chips{display:flex;gap:8px;flex-wrap:wrap}
-.season-chip{padding:7px 14px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:13px;cursor:pointer;font-family:inherit}
-.season-chip.selected{background:var(--accent);border-color:var(--accent);color:#fff}
+.chip-group{display:flex;gap:8px;flex-wrap:wrap}
+.chip{padding:7px 14px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:13px;cursor:pointer;font-family:inherit}
+.chip.selected{background:var(--accent);border-color:var(--accent);color:#fff}
 
 .star-picker{display:flex;gap:4px}
 .star-btn{font-size:24px;cursor:pointer;color:var(--border);background:none;border:none;transition:color .1s;padding:0}
@@ -91,12 +93,22 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
   <button class="filter-chip" data-cat="shoes">Shoes</button>
   <button class="filter-chip" data-cat="jacket">Jackets</button>
 </div>
-<div class="season-filters" id="seasonFilters">
+<div class="filter-row" id="seasonFilters">
   <button class="filter-chip active" data-season="">All seasons</button>
   <button class="filter-chip" data-season="spring">Spring</button>
   <button class="filter-chip" data-season="summer">Summer</button>
   <button class="filter-chip" data-season="autumn">Autumn</button>
   <button class="filter-chip" data-season="winter">Winter</button>
+</div>
+<div class="filter-row" id="occasionFilters">
+  <button class="filter-chip active" data-occ="">All occasions</button>
+  <button class="filter-chip" data-occ="casual">Casual</button>
+  <button class="filter-chip" data-occ="pub">Pub</button>
+  <button class="filter-chip" data-occ="work">Work</button>
+  <button class="filter-chip" data-occ="formal">Formal</button>
+  <button class="filter-chip" data-occ="night_out">Night Out</button>
+  <button class="filter-chip" data-occ="sport">Sport</button>
+  <button class="filter-chip" data-occ="holiday">Holiday</button>
 </div>
 
 <div class="grid" id="grid">
@@ -124,11 +136,23 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
     </div>
     <div class="field">
       <label>Seasons</label>
-      <div class="season-chips" id="fSeasons">
-        <button type="button" class="season-chip" data-s="spring">Spring</button>
-        <button type="button" class="season-chip" data-s="summer">Summer</button>
-        <button type="button" class="season-chip" data-s="autumn">Autumn</button>
-        <button type="button" class="season-chip" data-s="winter">Winter</button>
+      <div class="chip-group" id="fSeasons">
+        <button type="button" class="chip" data-s="spring">Spring</button>
+        <button type="button" class="chip" data-s="summer">Summer</button>
+        <button type="button" class="chip" data-s="autumn">Autumn</button>
+        <button type="button" class="chip" data-s="winter">Winter</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Occasions</label>
+      <div class="chip-group" id="fOccasions">
+        <button type="button" class="chip" data-o="casual">Casual</button>
+        <button type="button" class="chip" data-o="pub">Pub</button>
+        <button type="button" class="chip" data-o="work">Work</button>
+        <button type="button" class="chip" data-o="formal">Formal</button>
+        <button type="button" class="chip" data-o="night_out">Night Out</button>
+        <button type="button" class="chip" data-o="sport">Sport</button>
+        <button type="button" class="chip" data-o="holiday">Holiday</button>
       </div>
     </div>
     <div class="field">
@@ -161,11 +185,8 @@ function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace
 function stars(n){return n ? '&#9733;'.repeat(n) + '&#9734;'.repeat(5-n) : ''}
 const catIcon = {top:'👕',bottom:'👖',shoes:'👟',jacket:'🧥'};
 
-let activeCat = '';
-let activeSeason = '';
-let editingId = null;
-let rating = 0;
-let itemMap = {};
+let activeCat = '', activeSeason = '', activeOccasion = '';
+let editingId = null, rating = 0, itemMap = {};
 
 async function signOut() {
   await fetch('/api/auth/logout', { method: 'POST' });
@@ -182,6 +203,7 @@ async function renderGrid() {
   const params = new URLSearchParams();
   if (activeCat) params.set('category', activeCat);
   if (activeSeason) params.set('season', activeSeason);
+  if (activeOccasion) params.set('occasion', activeOccasion);
   const items = await fetch('/api/items?' + params).then(r => r.json());
   itemMap = Object.fromEntries(items.map(it => [it.id, it]));
   const grid = document.getElementById('grid');
@@ -197,7 +219,8 @@ async function renderGrid() {
       <div class="item-info">
         <div class="item-name">${esc(it.name)}</div>
         ${it.rating ? `<div class="item-stars">${stars(it.rating)}</div>` : ''}
-        ${it.seasons ? `<div class="item-seasons">${esc(it.seasons.split(',').join(', '))}</div>` : ''}
+        ${it.seasons ? `<div class="item-meta">${esc(it.seasons.split(',').join(', '))}</div>` : ''}
+        ${it.occasions ? `<div class="item-occ">${esc(it.occasions.split(',').map(o=>o.replace('_',' ')).join(', '))}</div>` : ''}
       </div>
     </div>`).join('');
 
@@ -207,7 +230,6 @@ async function renderGrid() {
   }, { once: true });
 }
 
-// Category filters
 document.getElementById('catFilters').addEventListener('click', e => {
   const chip = e.target.closest('[data-cat]');
   if (!chip) return;
@@ -216,7 +238,6 @@ document.getElementById('catFilters').addEventListener('click', e => {
   renderGrid();
 });
 
-// Season filters
 document.getElementById('seasonFilters').addEventListener('click', e => {
   const chip = e.target.closest('[data-season]');
   if (!chip) return;
@@ -225,7 +246,14 @@ document.getElementById('seasonFilters').addEventListener('click', e => {
   renderGrid();
 });
 
-// Star picker
+document.getElementById('occasionFilters').addEventListener('click', e => {
+  const chip = e.target.closest('[data-occ]');
+  if (!chip) return;
+  activeOccasion = chip.dataset.occ;
+  document.querySelectorAll('#occasionFilters .filter-chip').forEach(c => c.classList.toggle('active', c === chip));
+  renderGrid();
+});
+
 document.getElementById('fStars').addEventListener('click', e => {
   const btn = e.target.closest('.star-btn');
   if (!btn) return;
@@ -234,46 +262,45 @@ document.getElementById('fStars').addEventListener('click', e => {
 });
 
 function updateStars() {
-  document.querySelectorAll('#fStars .star-btn').forEach(b => {
-    b.classList.toggle('active', parseInt(b.dataset.v) <= rating);
-  });
+  document.querySelectorAll('#fStars .star-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.v) <= rating));
 }
 
 document.getElementById('fSeasons').addEventListener('click', e => {
-  const chip = e.target.closest('.season-chip');
-  if (chip) chip.classList.toggle('selected');
+  const chip = e.target.closest('.chip'); if (chip) chip.classList.toggle('selected');
+});
+document.getElementById('fOccasions').addEventListener('click', e => {
+  const chip = e.target.closest('.chip'); if (chip) chip.classList.toggle('selected');
 });
 
 function getSelectedSeasons() {
-  return [...document.querySelectorAll('#fSeasons .season-chip.selected')].map(c => c.dataset.s).join(',');
+  return [...document.querySelectorAll('#fSeasons .chip.selected')].map(c => c.dataset.s).join(',');
 }
-
-function setSelectedSeasons(seasons) {
-  const set = new Set((seasons || '').split(',').filter(Boolean));
-  document.querySelectorAll('#fSeasons .season-chip').forEach(c => {
-    c.classList.toggle('selected', set.has(c.dataset.s));
-  });
+function setSelectedSeasons(val) {
+  const set = new Set((val||'').split(',').filter(Boolean));
+  document.querySelectorAll('#fSeasons .chip').forEach(c => c.classList.toggle('selected', set.has(c.dataset.s)));
+}
+function getSelectedOccasions() {
+  return [...document.querySelectorAll('#fOccasions .chip.selected')].map(c => c.dataset.o).join(',');
+}
+function setSelectedOccasions(val) {
+  const set = new Set((val||'').split(',').filter(Boolean));
+  document.querySelectorAll('#fOccasions .chip').forEach(c => c.classList.toggle('selected', set.has(c.dataset.o)));
 }
 
 function previewImage(input) {
   const file = input.files[0];
-  const prev = document.getElementById('imgPreview');
-  const hint = document.getElementById('uploadHint');
-  if (file) {
-    prev.src = URL.createObjectURL(file);
-    prev.style.display = 'block';
-    hint.textContent = file.name;
-  }
+  if (!file) return;
+  document.getElementById('imgPreview').src = URL.createObjectURL(file);
+  document.getElementById('imgPreview').style.display = 'block';
+  document.getElementById('uploadHint').textContent = file.name;
 }
 
 function openAdd() {
-  editingId = null;
-  rating = 0;
+  editingId = null; rating = 0;
   document.getElementById('sheetTitle').textContent = 'Add Item';
   document.getElementById('fName').value = '';
   document.getElementById('fCat').value = 'top';
-  setSelectedSeasons('');
-  updateStars();
+  setSelectedSeasons(''); setSelectedOccasions(''); updateStars();
   document.getElementById('fImage').value = '';
   document.getElementById('imgPreview').style.display = 'none';
   document.getElementById('uploadHint').textContent = 'Tap to choose PNG';
@@ -285,15 +312,12 @@ function openAdd() {
 }
 
 function openEdit(id) {
-  const it = itemMap[id];
-  if (!it) return;
-  editingId = it.id;
-  rating = it.rating || 0;
+  const it = itemMap[id]; if (!it) return;
+  editingId = it.id; rating = it.rating || 0;
   document.getElementById('sheetTitle').textContent = 'Edit Item';
   document.getElementById('fName').value = it.name;
   document.getElementById('fCat').value = it.category;
-  setSelectedSeasons(it.seasons);
-  updateStars();
+  setSelectedSeasons(it.seasons); setSelectedOccasions(it.occasions); updateStars();
   document.getElementById('imageField').style.display = 'none';
   document.getElementById('sheetBtns').innerHTML = `
     <button class="btn btn-danger" id="deleteBtn">Delete</button>
@@ -303,45 +327,37 @@ function openEdit(id) {
   document.getElementById('overlay').classList.add('open');
 }
 
-function closeOverlay() {
-  document.getElementById('overlay').classList.remove('open');
-}
-
-function closeSheet(e) {
-  if (e.target === document.getElementById('overlay')) closeOverlay();
-}
+function closeOverlay() { document.getElementById('overlay').classList.remove('open'); }
+function closeSheet(e) { if (e.target === document.getElementById('overlay')) closeOverlay(); }
 
 async function saveItem() {
   const name = document.getElementById('fName').value.trim();
   const category = document.getElementById('fCat').value;
   const seasons = getSelectedSeasons();
+  const occasions = getSelectedOccasions();
   if (!name) { alert('Name is required'); return; }
-
   if (editingId) {
     await fetch(`/api/items/${editingId}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, category, seasons, rating: rating || null }),
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ name, category, seasons, occasions, rating: rating || null }),
     });
   } else {
     const fd = new FormData();
-    fd.append('name', name);
-    fd.append('category', category);
-    fd.append('seasons', seasons);
+    fd.append('name', name); fd.append('category', category);
+    fd.append('seasons', seasons); fd.append('occasions', occasions);
     if (rating) fd.append('rating', rating);
     const file = document.getElementById('fImage').files[0];
     if (file) fd.append('image', file);
     await fetch('/api/items', { method: 'POST', body: fd });
   }
-  closeOverlay();
-  renderGrid();
+  closeOverlay(); renderGrid();
 }
 
 async function deleteItem(id) {
   if (!confirm('Delete this item?')) return;
   await fetch(`/api/items/${id}`, { method: 'DELETE' });
-  closeOverlay();
-  renderGrid();
+  closeOverlay(); renderGrid();
 }
 
 load();
