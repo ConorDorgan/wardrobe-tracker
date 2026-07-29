@@ -10,9 +10,9 @@ arch:
 startup: application
 boot: auto
 ports:
-  8099/tcp: 8099
+  8098/tcp: 8098
 ports_description:
-  8099/tcp: "Wardrobe Tracker Web UI"
+  8098/tcp: "Wardrobe Tracker Web UI"
 map:
   - data:rw
 options: {}

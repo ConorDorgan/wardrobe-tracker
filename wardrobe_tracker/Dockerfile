@@ -12,5 +12,5 @@ RUN npm install --omit=dev
 COPY src/ ./src/
 COPY public/ ./public/
 
-EXPOSE 8099
+EXPOSE 8098
 CMD ["node", "src/server.js"]

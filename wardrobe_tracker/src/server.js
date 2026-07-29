@@ -13,7 +13,7 @@ const crypto = require('crypto');
 const DATA_DIR = process.env.DATA_DIR || (process.platform === 'win32' ? path.join(__dirname, '../../data') : '/data');
 const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
 const DB_PATH = path.join(DATA_DIR, 'wardrobe.db');
-const PORT = parseInt(process.env.PORT || '8099', 10);
+const PORT = parseInt(process.env.PORT || '8098', 10);
 
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
