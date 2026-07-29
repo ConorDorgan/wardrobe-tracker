@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="manifest" href="/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Wardrobe">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<title>Room</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0c0c0c;--surface:#181818;--surface2:#242424;
+  --border:#2a2a2a;--accent:#5b8df6;--text:#f0f0f0;--muted:#777;
+}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+canvas{display:block;width:100%!important;height:100%!important}
+
+#header{
+  position:fixed;top:0;left:0;right:0;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:calc(env(safe-area-inset-top,0px) + 12px) 16px 10px;
+  background:linear-gradient(var(--bg) 50%,transparent);
+  z-index:20;pointer-events:none
+}
+#header>*{pointer-events:auto}
+.header-left{display:flex;align-items:center;gap:10px}
+.back{color:var(--accent);text-decoration:none;font-size:22px;line-height:1;padding:4px}
+.header-left h1{font-size:20px;font-weight:700;letter-spacing:-.5px;color:var(--text)}
+.signout-btn{background:rgba(24,24,24,.85);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:12px;padding:5px 10px;cursor:pointer;font-family:inherit}
+
+#tooltip{
+  position:fixed;pointer-events:none;z-index:30;
+  background:var(--surface);border:1px solid var(--border);border-radius:8px;
+  padding:6px 10px;font-size:13px;color:var(--text);
+  display:none;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.5)
+}
+#tt-sub{font-size:11px;color:var(--muted);margin-top:2px}
+
+#panel{
+  position:fixed;right:0;top:0;bottom:0;width:210px;
+  background:rgba(12,12,12,.92);border-left:1px solid var(--border);
+  overflow-y:auto;padding:70px 14px 24px;
+  transform:translateX(100%);transition:transform .25s ease;z-index:15
+}
+#panel.open{transform:translateX(0)}
+.pz-head{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 6px}
+.pz-head:first-child{margin-top:0}
+.pz-list{display:flex;flex-direction:column;gap:3px}
+.pz-row{font-size:12px;color:var(--text);padding:5px 8px;border-radius:6px;background:var(--surface2);display:flex;align-items:center;gap:7px;cursor:default}
+.pz-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.pz-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pz-empty{font-size:12px;color:var(--muted);font-style:italic;padding:2px 0}
+
+#items-btn{
+  position:fixed;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 24px);z-index:20;
+  background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  padding:9px 16px;font-size:13px;font-weight:600;color:var(--text);cursor:pointer;
+  font-family:inherit;transition:opacity .15s;box-shadow:0 4px 16px rgba(0,0,0,.4)
+}
+#items-btn:active{opacity:.7}
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div class="header-left">
+    <a href="/" class="back">&#8592;</a>
+    <h1>Room</h1>
+  </div>
+  <button class="signout-btn" onclick="signOut()">Sign out</button>
+</div>
+
+<div id="tooltip">
+  <span id="tt-name"></span>
+  <div id="tt-sub"></div>
+</div>
+
+<div id="panel"></div>
+<button id="items-btn" onclick="togglePanel()">Items</button>
+
+<canvas id="c"></canvas>
+
+<script>
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+async function signOut(){await fetch('/api/auth/logout',{method:'POST'});location.href='/login.html'}
+function togglePanel(){document.getElementById('panel').classList.toggle('open')}
+</script>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const meRes = await fetch('/api/auth/me');
+if (!meRes.ok) { location.replace('/login.html'); }
+const items = await fetch('/api/items').then(r => r.json()).catch(() => []);
+
+// ── Renderer ──────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+
+// ── Scene / Camera ─────────────────────────────────────────────────────────────
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0a10);
+scene.fog = new THREE.Fog(0x0a0a10, 14, 22);
+
+const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 50);
+camera.position.set(5.5, 6.5, 8.5);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.maxPolarAngle = Math.PI * 0.44;
+controls.minDistance = 4;
+controls.maxDistance = 18;
+controls.target.set(0, 0.8, 0);
+controls.update();
+
+// ── Lights ─────────────────────────────────────────────────────────────────────
+scene.add(new THREE.AmbientLight(0x202035, 3));
+
+const sun = new THREE.DirectionalLight(0xfff0e0, 2.5);
+sun.position.set(4, 9, 6);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { near:0.5, far:32, left:-9, right:9, top:9, bottom:-9 });
+scene.add(sun);
+
+const fill = new THREE.PointLight(0x3050cc, 1.2, 18);
+fill.position.set(-4, 3.5, -3);
+scene.add(fill);
+
+const warm = new THREE.PointLight(0xff9050, 0.6, 12);
+warm.position.set(3.5, 2, 3);
+scene.add(warm);
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+function boxMesh(w, h, d, color, rough=0.85, metal=0) {
+  const m = new THREE.Mesh(
+    new THREE.BoxGeometry(w, h, d),
+    new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal })
+  );
+  m.castShadow = true;
+  m.receiveShadow = true;
+  return m;
+}
+
+// ── Room ───────────────────────────────────────────────────────────────────────
+// Floor
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(11, 11),
+  new THREE.MeshStandardMaterial({ color: 0x111115, roughness: 0.97 })
+);
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+const grid = new THREE.GridHelper(11, 22, 0x1c1c22, 0x1c1c22);
+grid.position.y = 0.002;
+scene.add(grid);
+
+// Back wall
+const backWall = new THREE.Mesh(
+  new THREE.PlaneGeometry(11, 4.5),
+  new THREE.MeshStandardMaterial({ color: 0x0f0f16, roughness: 0.95 })
+);
+backWall.position.set(0, 2.25, -5.5);
+backWall.receiveShadow = true;
+scene.add(backWall);
+
+// Left wall
+const leftWall = new THREE.Mesh(
+  new THREE.PlaneGeometry(11, 4.5),
+  new THREE.MeshStandardMaterial({ color: 0x0e0e15, roughness: 0.95 })
+);
+leftWall.position.set(-5.5, 2.25, 0);
+leftWall.rotation.y = Math.PI / 2;
+leftWall.receiveShadow = true;
+scene.add(leftWall);
+
+// Skirting boards
+const skirtMat = new THREE.MeshStandardMaterial({ color: 0x1a1a20, roughness: 0.9 });
+const skirtBack = new THREE.Mesh(new THREE.BoxGeometry(11, 0.12, 0.04), skirtMat);
+skirtBack.position.set(0, 0.06, -5.48);
+scene.add(skirtBack);
+const skirtLeft = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.12, 11), skirtMat);
+skirtLeft.position.set(-5.48, 0.06, 0);
+scene.add(skirtLeft);
+
+// ── Wardrobe (back-left corner) ───────────────────────────────────────────────
+const wardrobeG = new THREE.Group();
+wardrobeG.position.set(-3.4, 0, -4.6);
+
+const wBody = boxMesh(1.7, 2.5, 0.7, 0x1a1108, 0.88);
+wBody.position.y = 1.25;
+wardrobeG.add(wBody);
+
+// Top trim
+const wTop = boxMesh(1.76, 0.06, 0.76, 0x251810, 0.75);
+wTop.position.y = 2.53;
+wardrobeG.add(wTop);
+
+// Door seam line
+const seamMat = new THREE.MeshStandardMaterial({ color: 0x0a0704 });
+const seam = new THREE.Mesh(new THREE.BoxGeometry(0.02, 2.3, 0.01), seamMat);
+seam.position.set(0, 1.15, 0.355);
+wardrobeG.add(seam);
+
+// Door handles
+const handleMat = new THREE.MeshStandardMaterial({ color: 0x888880, roughness: 0.3, metalness: 0.7 });
+[-0.18, 0.18].forEach(x => {
+  const h = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.1), handleMat);
+  h.rotation.z = Math.PI / 2;
+  h.position.set(x, 1.1, 0.36);
+  wardrobeG.add(h);
+});
+
+scene.add(wardrobeG);
+
+// ── Clothes rail (back-right) ─────────────────────────────────────────────────
+const railG = new THREE.Group();
+railG.position.set(2.4, 0, -4.6);
+
+const poleMat = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.3, metalness: 0.65 });
+const poleH = 1.9;
+const barW = 1.5;
+
+const pL = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, poleH, 12), poleMat);
+pL.position.set(-barW/2, poleH/2, 0);
+pL.castShadow = true;
+railG.add(pL);
+
+const pR = pL.clone();
+pR.position.set(barW/2, poleH/2, 0);
+railG.add(pR);
+
+const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, barW, 12), poleMat);
+bar.rotation.z = Math.PI / 2;
+bar.position.set(0, poleH, 0);
+bar.castShadow = true;
+railG.add(bar);
+
+// Base feet
+[-barW/2, barW/2].forEach(x => {
+  const foot = boxMesh(0.12, 0.04, 0.3, 0x333333, 0.9);
+  foot.position.set(x, 0.02, 0);
+  railG.add(foot);
+});
+
+scene.add(railG);
+
+// ── Wash basket (front-right) ─────────────────────────────────────────────────
+const basketG = new THREE.Group();
+basketG.position.set(3.4, 0, 2.9);
+
+const basketMat = new THREE.MeshStandardMaterial({ color: 0x0f2518, roughness: 0.92 });
+const basketBody = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.34, 0.58, 20), basketMat);
+basketBody.position.y = 0.29;
+basketBody.castShadow = true;
+basketG.add(basketBody);
+
+// Rim
+const rimMat = new THREE.MeshStandardMaterial({ color: 0x1a3a28, roughness: 0.7 });
+const rim = new THREE.Mesh(new THREE.TorusGeometry(0.44, 0.025, 8, 20), rimMat);
+rim.rotation.x = Math.PI / 2;
+rim.position.y = 0.58;
+basketG.add(rim);
+
+scene.add(basketG);
+
+// ── Bags area (front-left) ────────────────────────────────────────────────────
+const bagAreaG = new THREE.Group();
+bagAreaG.position.set(-3.4, 0, 2.9);
+
+// Small shelf/bench
+const bench = boxMesh(1.1, 0.06, 0.5, 0x18181e, 0.88);
+bench.position.y = 0.03;
+bagAreaG.add(bench);
+
+// Two decorative bag outlines
+[[−0.28, 0.3], [0.28, 0.3]].forEach(([x]) => {
+  const bagBody = boxMesh(0.32, 0.36, 0.14, 0x161620, 0.9);
+  bagBody.position.set(x, 0.24, 0);
+  bagAreaG.add(bagBody);
+  const bagHandle = new THREE.Mesh(
+    new THREE.TorusGeometry(0.1, 0.018, 8, 16, Math.PI),
+    new THREE.MeshStandardMaterial({ color: 0x1e1e28, roughness: 0.8 })
+  );
+  bagHandle.position.set(x, 0.5, 0);
+  bagAreaG.add(bagHandle);
+});
+
+scene.add(bagAreaG);
+
+// Floor zone highlight
+const zoneMat = new THREE.MeshStandardMaterial({ color: 0x16161f, roughness: 1, transparent: true, opacity: 0.8 });
+const zoneDisc = new THREE.Mesh(new THREE.CircleGeometry(1.1, 32), zoneMat);
+zoneDisc.rotation.x = -Math.PI / 2;
+zoneDisc.position.set(0.3, 0.003, 0.8);
+scene.add(zoneDisc);
+
+// Zone label plates (flat text indicators)
+const labelMat = new THREE.MeshStandardMaterial({ color: 0x1e1e28, roughness: 0.9 });
+const labelData = [
+  { label: 'WARDROBE', pos: [-3.4, 0.01, -3.7] },
+  { label: 'RAIL',     pos: [ 2.4,  0.01, -3.7] },
+  { label: 'WASH',     pos: [ 3.4,  0.01,  2.1] },
+  { label: 'BAGS',     pos: [-3.4,  0.01,  2.1] },
+  { label: 'FLOOR',    pos: [ 0.3,  0.01,  0.8] },
+];
+labelData.forEach(({ pos }) => {
+  const plate = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.22), labelMat);
+  plate.rotation.x = -Math.PI / 2;
+  plate.position.set(...pos);
+  scene.add(plate);
+});
+
+// ── Item colors ───────────────────────────────────────────────────────────────
+const CAT_HEX = { top: 0x5b8df6, bottom: 0x4caf84, shoes: 0xe0903a, jacket: 0x9b59b6 };
+function itemColor(it) { return CAT_HEX[it.category] || 0x888899; }
+
+// ── Group items by status ─────────────────────────────────────────────────────
+const byStatus = { wardrobe:[], rail:[], floor:[], wash:[], bag:[] };
+items.forEach(it => { (byStatus[it.status] || byStatus.wardrobe).push(it); });
+
+// ── Item meshes ────────────────────────────────────────────────────────────────
+const itemMeshes = [];
+
+function makeItemMesh(item, wx, wy, wz, sw, sh, sd) {
+  const color = itemColor(item);
+  const mat = new THREE.MeshStandardMaterial({
+    color, roughness: 0.55, metalness: 0.05,
+    emissive: color, emissiveIntensity: 0.06,
+  });
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(sw, sh, sd), mat);
+  mesh.position.set(wx, wy, wz);
+  mesh.castShadow = true;
+  mesh.userData.item = item;
+  scene.add(mesh);
+  itemMeshes.push(mesh);
+}
+
+// Wardrobe items: stacked grid inside wardrobe
+byStatus.wardrobe.forEach((it, i) => {
+  const col = i % 2, row = Math.floor(i / 2);
+  const x = -3.4 + (col - 0.5) * 0.25;
+  const y = 0.16 + row * 0.2;
+  const z = -4.27;
+  if (y < 2.3) makeItemMesh(it, x, y, z, 0.18, 0.17, 0.06);
+});
+
+// Rail items: hanging clothes rectangles from bar
+byStatus.rail.forEach((it, i) => {
+  const n = byStatus.rail.length;
+  const span = Math.min(barW * 0.85, n * 0.15);
+  const startX = 2.4 - span / 2 + (n > 1 ? (span / (n - 1)) * i : 0);
+  const x = n === 1 ? 2.4 : startX;
+  const y = poleH - 0.19;
+  makeItemMesh(it, x, y, -4.6, 0.1, 0.38, 0.03);
+});
+
+// Floor items: scattered on the floor zone disc
+byStatus.floor.forEach((it, i) => {
+  const angle = (i / Math.max(byStatus.floor.length, 1)) * Math.PI * 2 + 0.3;
+  const r = 0.25 + (i % 3) * 0.25;
+  const x = 0.3 + Math.cos(angle) * r;
+  const z = 0.8 + Math.sin(angle) * r;
+  makeItemMesh(it, x, 0.085, z, 0.18, 0.15, 0.07);
+});
+
+// Wash items: inside basket
+byStatus.wash.forEach((it, i) => {
+  const angle = (i / Math.max(byStatus.wash.length, 1)) * Math.PI * 2;
+  const r = i === 0 ? 0 : 0.14 + (i % 2) * 0.08;
+  const x = 3.4 + Math.cos(angle) * r;
+  const z = 2.9 + Math.sin(angle) * r;
+  const y = 0.22 + Math.floor(i / 5) * 0.14;
+  makeItemMesh(it, x, y, z, 0.13, 0.12, 0.06);
+});
+
+// Bag items: on the bench
+byStatus.bag.forEach((it, i) => {
+  const x = -3.4 + (i % 4) * 0.22 - 0.33;
+  const y = 0.12 + Math.floor(i / 4) * 0.16;
+  makeItemMesh(it, x, y, 2.9, 0.13, 0.12, 0.06);
+});
+
+// ── Panel ─────────────────────────────────────────────────────────────────────
+const ZONE_LABELS = { wardrobe:'Wardrobe', rail:'Rail', floor:'Floor', wash:'In the wash', bag:'Bags' };
+const panel = document.getElementById('panel');
+panel.innerHTML = Object.entries(byStatus).map(([key, list]) => {
+  const rows = list.length
+    ? list.map(it => {
+        const c = '#' + itemColor(it).toString(16).padStart(6,'0');
+        return `<div class="pz-row"><div class="pz-dot" style="background:${c}"></div><span class="pz-name">${esc(it.name)}</span></div>`;
+      }).join('')
+    : '<div class="pz-empty">Empty</div>';
+  return `<div class="pz-head">${ZONE_LABELS[key]} (${list.length})</div><div class="pz-list">${rows}</div>`;
+}).join('');
+
+// ── Raycaster / tooltip ────────────────────────────────────────────────────────
+const raycaster = new THREE.Raycaster();
+const pointer   = new THREE.Vector2(-9, -9);
+let hovered = null;
+
+canvas.addEventListener('pointermove', e => {
+  const r = canvas.getBoundingClientRect();
+  pointer.x =  ((e.clientX - r.left) / r.width)  * 2 - 1;
+  pointer.y = -((e.clientY - r.top)  / r.height) * 2 + 1;
+});
+canvas.addEventListener('pointerleave', () => pointer.set(-9, -9));
+
+const tooltip = document.getElementById('tooltip');
+const STATUS_LABEL = { wardrobe:'Wardrobe', rail:'Rail', floor:'On the floor', wash:'In the wash', bag:'In bag' };
+
+// ── Resize ────────────────────────────────────────────────────────────────────
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── Render loop ───────────────────────────────────────────────────────────────
+function tick() {
+  requestAnimationFrame(tick);
+  controls.update();
+
+  raycaster.setFromCamera(pointer, camera);
+  const hit = raycaster.intersectObjects(itemMeshes)[0]?.object ?? null;
+
+  if (hit !== hovered) {
+    if (hovered) {
+      hovered.material.emissiveIntensity = 0.06;
+      hovered.scale.setScalar(1);
+    }
+    hovered = hit;
+    if (hovered) {
+      hovered.material.emissiveIntensity = 0.55;
+      hovered.scale.setScalar(1.35);
+    }
+  }
+
+  if (hovered) {
+    const p = hovered.position.clone().project(camera);
+    const tx = (p.x * 0.5 + 0.5) * window.innerWidth;
+    const ty = (-p.y * 0.5 + 0.5) * window.innerHeight;
+    tooltip.style.cssText = `display:block;left:${tx + 14}px;top:${ty - 24}px`;
+    document.getElementById('tt-name').textContent = hovered.userData.item.name;
+    document.getElementById('tt-sub').textContent =
+      hovered.userData.item.category + ' · ' + (STATUS_LABEL[hovered.userData.item.status] || hovered.userData.item.status);
+  } else {
+    tooltip.style.display = 'none';
+  }
+
+  renderer.render(scene, camera);
+}
+tick();
+</script>
+</body>
+</html>
